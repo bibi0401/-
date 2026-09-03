@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>24h Routine & Task Master Pro</title>
+  <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIjI0aCBSb3V0aW5lIiwKICAic2hvcnRfbmFtZSI6ICJSb3V0aW5lIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiMxYTFhMmEiLAogICJ0aGVtZV9jb2xvciI6ICIjNmM1Y2UxIgp9">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --text-color: #f8fafc;
+      --card-bg: rgba(30, 41, 59, 0.85);
+      --app-font: system-ui, -apple-system, sans-serif;
+    }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: var(--app-font);
+      transition: background-color 0.2s, color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+    .glass-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .clock-container {
+      position: relative;
+      width: 100%;
+      max-width: 380px;
+      margin: 0 auto;
+      aspect-ratio: 1;
+      touch-action: none;
+    }
+    .nav-tab.active {
+      color: #38bdf8;
+      border-bottom: 3px solid #38bdf8;
+    }
+    
+    /* Color Wheel Canvas Pointer */
+    .wheel-canvas {
+      cursor: crosshair;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body class="pb-24 min-h-screen select-none">
+
+  <!-- ヘッダー -->
+  <header class="p-4 glass-card sticky top-0 z-30 flex justify-between items-center shadow-md">
+    <div class="flex items-center space-x-3">
+      <div id="appIconPreview" class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+        ⏱️
+      </div>
+      <div>
+        <h1 class="text-lg font-bold leading-tight" id="headerTitle">デイリータイムズ Pro</h1>
+        <p class="text-xs opacity-75" id="currentDateStr">----/--/-- (-)</p>
+      </div>
+    </div>
+    <button onclick="toggleSettingsModal(true)" class="p-2 rounded-full hover:bg-white/10 transition">
+      <i class="fa-solid fa-gear text-xl"></i>
+    </button>
+  </header>
+
+  <!-- ナビゲーション -->
+  <nav class="flex justify-around glass-card border-b border-white/10 text-sm font-medium sticky top-[65px] z-20">
+    <button id="tabScheduleBtn" onclick="switchTab('schedule')" class="nav-tab active py-3 flex-1 text-center">
+      <i class="fa-solid fa-clock mr-1"></i> 時計スケジュール
+    </button>
+    <button id="tabPiecesBtn" onclick="switchTab('pieces')" class="nav-tab py-3 flex-1 text-center">
+      <i class="fa-solid fa-puzzle-piece mr-1"></i> ピース管理
+    </button>
+    <button id="tabTasksBtn" onclick="switchTab('tasks')" class="nav-tab py-3 flex-1 text-center">
+      <i class="fa-solid fa-list-check mr-1"></i> やることリスト
+    </button>
+  </nav>
+
+  <!-- メインコンテンツ -->
+  <main class="p-4 max-w-lg mx-auto space-y-6">
+
+    <!-- 1. 時計スケジュールタブ -->
+    <section id="tabSchedule" class="space-y-6">
+      <div class="glass-card p-4 rounded-3xl shadow-2xl text-center relative">
+        <div class="flex justify-between items-center mb-2 px-2">
+          <span class="text-xs font-semibold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" id="dayOfWeekBadge">
+            本日のパターン
+          </span>
+          <button onclick="triggerDailySetupNotificationModal()" class="text-xs text-sky-400 hover:underline flex items-center gap-1">
+            <i class="fa-regular fa-bell"></i> 決定通知設定
+          </button>
+        </div>
+
+        <!-- 24時間 アナログ時計 -->
+        <div class="clock-container my-2" id="clockDropTarget">
+          <canvas id="clockCanvas" width="760" height="760" class="w-full h-full cursor-pointer"></canvas>
+        </div>
+
+        <div class="text-xs opacity-70 mt-2 flex justify-center items-center gap-2">
+          <span class="inline-block w-2 h-2 rounded-full bg-sky-400"></span> 端をドラッグで伸縮
+          <span class="inline-block w-2 h-2 rounded-full bg-pink-400"></span> タップでピース削除
+        </div>
+      </div>
+
+      <!-- 本日使えるピース一覧 -->
+      <div class="glass-card p-4 rounded-2xl space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="font-bold text-md flex items-center gap-2">
+            <i class="fa-solid fa-shapes text-indigo-400"></i> 本日使えるピース
+          </h2>
+          <span class="text-[11px] opacity-60">タップ/ドラッグで配置</span>
+        </div>
+
+        <div id="availablePiecesList" class="flex flex-wrap gap-2 pt-1 min-h-[50px]">
+          <!-- ピース一覧 -->
+        </div>
+      </div>
+
+      <!-- 配置済みタイムスケジュール -->
+      <div class="glass-card p-4 rounded-2xl space-y-3">
+        <h2 class="font-bold text-md flex items-center gap-2">
+          <i class="fa-solid fa-timeline text-sky-400"></i> 配置済みの予定一覧
+        </h2>
+        <div id="timelineList" class="space-y-2">
+          <!-- スケジュール一覧 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. ピース管理タブ -->
+    <section id="tabPieces" class="hidden space-y-6">
+      <div class="flex justify-between items-center">
+        <h2 class="font-bold text-lg">ピースの一覧・作成</h2>
+        <button onclick="openPieceModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg flex items-center gap-2">
+          <i class="fa-solid fa-plus"></i> 新規ピース
+        </button>
+      </div>
+
+      <div class="flex gap-1 overflow-x-auto pb-2 text-xs" id="dayFilterBtns">
+        <!-- 曜日フィルター -->
+      </div>
+
+      <div id="piecesGrid" class="grid grid-cols-1 gap-3">
+        <!-- ピースカード -->
+      </div>
+    </section>
+
+    <!-- 3. やることリストタブ -->
+    <section id="tabTasks" class="hidden space-y-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <h2 class="font-bold text-lg">やることリスト</h2>
+          <p class="text-xs opacity-75">全幅グラデーション＆重要度カラー表示</p>
+        </div>
+        <button onclick="openTaskModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl shadow-lg flex items-center gap-2">
+          <i class="fa-solid fa-plus"></i> タスク追加
+        </button>
+      </div>
+
+      <div id="tasksList" class="space-y-4">
+        <!-- タスク一覧 -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- モーダルダイアログ群 -->
+
+  <!-- ★ 最前面 (z-index: 100) 本格カラーピッカーモーダル (ibisPaint風) ★ -->
+  <div id="customColorPickerModal" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-sm rounded-3xl p-5 space-y-4 shadow-2xl border border-white/30">
+      <div class="flex justify-between items-center border-b border-white/10 pb-2">
+        <h3 class="font-bold text-md flex items-center gap-2">
+          <i class="fa-solid fa-eye-dropper text-sky-400"></i> カラー設定
+        </h3>
+        <div id="pickerColorBadge" class="w-14 h-7 rounded-lg border-2 border-white shadow-md"></div>
+      </div>
+
+      <!-- 色相環＆ひし形キャンバス -->
+      <div class="relative flex justify-center items-center py-1">
+        <canvas id="colorWheelCanvas" width="280" height="280" class="wheel-canvas rounded-full shadow-lg"></canvas>
+      </div>
+
+      <!-- Hex & RGB スライダー -->
+      <div class="space-y-2 text-xs font-mono">
+        <div class="flex items-center gap-2 bg-slate-900/90 p-2 rounded-xl border border-white/20">
+          <span class="text-gray-400 font-sans">HEX:</span>
+          <input type="text" id="pickerHexInput" class="bg-transparent flex-1 text-white text-sm outline-none uppercase font-bold" value="#FFFFFF" onchange="onHexInputChange(this.value)">
+        </div>
+
+        <div class="space-y-1.5 pt-1">
+          <div class="flex items-center gap-2">
+            <span class="w-4 text-red-400 font-bold">R</span>
+            <input type="range" id="pickerR" min="0" max="255" class="flex-1 accent-red-500" oninput="onColorSliderChange()">
+            <span id="pickerRVal" class="w-8 text-right">255</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-4 text-green-400 font-bold">G</span>
+            <input type="range" id="pickerG" min="0" max="255" class="flex-1 accent-green-500" oninput="onColorSliderChange()">
+            <span id="pickerGVal" class="w-8 text-right">255</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-4 text-blue-400 font-bold">B</span>
+            <input type="range" id="pickerB" min="0" max="255" class="flex-1 accent-blue-500" oninput="onColorSliderChange()">
+            <span id="pickerBVal" class="w-8 text-right">255</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeCustomColorPicker()" class="flex-1 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-xl font-bold text-xs">キャンセル</button>
+        <button onclick="confirmCustomColorSelection()" class="flex-1 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold text-xs shadow-lg">色を確定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- アプリ設定モーダル (z-index: 50) -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-md rounded-3xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-white/10 pb-3">
+        <h3 class="font-bold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-palette text-pink-400"></i> デザイン＆設定
+        </h3>
+        <button onclick="toggleSettingsModal(false)" class="text-lg opacity-70 hover:opacity-100">&times;</button>
+      </div>
+
+      <!-- 配色設定 -->
+      <div class="space-y-3">
+        <h4 class="text-sm font-semibold opacity-90">アプリ全体の配色</h4>
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div onclick="openCustomColorPicker('bgColor', appState.theme.bgColor)" class="p-3 rounded-2xl border border-white/20 bg-white/5 cursor-pointer hover:bg-white/10 flex items-center justify-between">
+            <span>背景色</span>
+            <div id="bgColorPreview" class="w-7 h-7 rounded-full border-2 border-white shadow" style="background-color: var(--bg-color)"></div>
+          </div>
+          <div onclick="openCustomColorPicker('textColor', appState.theme.textColor)" class="p-3 rounded-2xl border border-white/20 bg-white/5 cursor-pointer hover:bg-white/10 flex items-center justify-between">
+            <span>文字色</span>
+            <div id="textColorPreview" class="w-7 h-7 rounded-full border-2 border-white shadow" style="background-color: var(--text-color)"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- フォント設定 -->
+      <div class="space-y-2">
+        <label class="text-sm font-semibold opacity-90 block">フォントスタイル</label>
+        <select id="fontSelect" onchange="updateFontSetting()" class="w-full p-3 rounded-xl bg-slate-800 border border-white/20 text-sm">
+          <option value="system-ui, -apple-system, sans-serif">標準 (Sans-Serif)</option>
+          <option value="'M PLUS Rounded 1c', sans-serif">丸ゴシック (Friendly)</option>
+          <option value="Georgia, serif">明朝体 (Classic)</option>
+          <option value="monospace">等幅 (Modern Tech)</option>
+        </select>
+      </div>
+
+      <!-- 通知時間設定 -->
+      <div class="space-y-2 pt-2 border-t border-white/10">
+        <h4 class="text-sm font-semibold opacity-90">通知時刻設定</h4>
+        <div>
+          <label class="block text-xs opacity-75 mb-1">毎日の「今日の予定を決めよう！」通知時刻</label>
+          <input type="time" id="dailyReminderTime" value="08:00" class="w-full p-2.5 rounded-xl bg-slate-800 border border-white/20 text-sm">
+        </div>
+      </div>
+
+      <div class="pt-3">
+        <button onclick="saveSettings()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg">
+          設定を保存
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ピース作成・編集モーダル (z-index: 50) -->
+  <div id="pieceModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-md rounded-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-white/10 pb-2">
+        <h3 id="pieceModalTitle" class="font-bold text-lg">ピースの作成</h3>
+        <button onclick="closePieceModal()" class="text-lg opacity-70 hover:opacity-100">&times;</button>
+      </div>
+
+      <form id="pieceForm" onsubmit="handleSavePiece(event)" class="space-y-4 text-sm">
+        <input type="hidden" id="pieceId">
+        
+        <div>
+          <label class="block text-xs opacity-75 mb-1">ピースの内容 (タイトル)</label>
+          <input type="text" id="pieceTitle" required placeholder="例: お風呂・読書・夕食" class="w-full p-2.5 rounded-xl bg-slate-800 border border-white/20 text-white">
+        </div>
+
+        <div>
+          <label class="block text-xs opacity-75 mb-1">テーマカラー (色を変更)</label>
+          <div onclick="openCustomColorPicker('pieceColor', document.getElementById('pieceColorVal').value)" class="p-3 rounded-xl border border-white/20 bg-slate-800 cursor-pointer hover:bg-slate-700 flex items-center justify-between">
+            <span class="text-xs font-medium">タップしてカラーピッカーで変更</span>
+            <div id="pieceColorPreview" class="w-8 h-8 rounded-full border-2 border-white shadow-md transition-all" style="background-color: #3b82f6"></div>
+          </div>
+          <input type="hidden" id="pieceColorVal" value="#3b82f6">
+        </div>
+
+        <!-- ★ 適用曜日の選択（複数選択・個別に月〜日指定） ★ -->
+        <div>
+          <label class="block text-xs opacity-75 mb-1.5">適用曜日 (選択してください)</label>
+          
+          <div class="flex flex-wrap gap-1.5 mb-2">
+            <button type="button" onclick="toggleAllDaysSelection(true)" class="px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[11px]">全選択</button>
+            <button type="button" onclick="toggleWeekdaysSelection()" class="px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[11px]">平日のみ</button>
+            <button type="button" onclick="toggleWeekendSelection()" class="px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[11px]">土日のみ</button>
+            <button type="button" onclick="toggleAllDaysSelection(false)" class="px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[11px]">今日限定のみ</button>
+          </div>
+
+          <div class="grid grid-cols-7 gap-1 text-center font-bold text-xs">
+            <label class="cursor-pointer">
+              <input type="checkbox" id="day_mon" class="peer hidden" onchange="onDayCheckboxChange()">
+              <div class="p-2 rounded-xl border border-white/20 bg-slate-800 peer-checked:bg-indigo-600 peer-checked:border-indigo-400 transition">月</div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="checkbox" id="day_tue" class="peer hidden" onchange="onDayCheckboxChange()">
+              <div class="p-2 rounded-xl border border-white/20 bg-slate-800 peer-checked:bg-indigo-600 peer-checked:border-indigo-400 transition">火</div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="checkbox" id="day_wed" class="peer hidden" onchange="onDayCheckboxChange()">
+              <div class="p-2 rounded-xl border border-white/20 bg-slate-800 peer-checked:bg-indigo-600 peer-checked:border-indigo-400 transition">水</div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="checkbox" id="day_thu" class="peer hidden" onchange="onDayCheckboxChange()">
+              <div class="p-2 rounded-xl border border-white/20 bg-slate-800 peer-checked:bg-indigo-600 peer-checked:border-indigo-400 transition">木</div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="checkbox" id="day_fri" class="peer hidden" onchange="onDayCheckboxChange()">
+              <div class="p-2 rounded-xl border border-white/20 bg-slate-800 peer-checked:bg-indigo-600 peer-checked:border-indigo-400 transition">金</div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="checkbox" id="day_sat" class="peer hidden" onchange="onDayCheckboxChange()">
+              <div class="p-2 rounded-xl border border-white/20 bg-slate-800 peer-checked:bg-blue-600 peer-checked:border-blue-400 transition text-blue-300 peer-checked:text-white">土</div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="checkbox" id="day_sun" class="peer hidden" onchange="onDayCheckboxChange()">
+              <div class="p-2 rounded-xl border border-white/20 bg-slate-800 peer-checked:bg-red-600 peer-checked:border-red-400 transition text-red-300 peer-checked:text-white">日</div>
+            </label>
+          </div>
+
+          <div class="mt-2 flex items-center gap-2">
+            <input type="checkbox" id="day_today" class="w-4 h-4 rounded accent-indigo-500" onchange="onTodayCheckboxChange()">
+            <label for="day_today" class="text-xs cursor-pointer text-pink-300 font-semibold">本日限定（今日だけ表示するスポットピース）</label>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="pieceAddToTask" class="w-4 h-4 rounded accent-indigo-500">
+          <label for="pieceAddToTask" class="text-xs cursor-pointer">配置時に「やることリスト」にも同時追加する</label>
+        </div>
+
+        <div class="pt-4 flex gap-2">
+          <button type="button" id="modalDeletePieceBtn" onclick="deletePieceFromModal()" class="py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold flex items-center gap-1 shadow">
+            <i class="fa-solid fa-trash"></i> 削除
+          </button>
+          <button type="button" onclick="closePieceModal()" class="flex-1 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-xl font-bold">キャンセル</button>
+          <button type="submit" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- タスク作成・編集モーダル (z-index: 50) -->
+  <div id="taskModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-md rounded-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-white/10 pb-2">
+        <h3 id="taskModalTitle" class="font-bold text-lg">タスクの作成</h3>
+        <button onclick="closeTaskModal()" class="text-lg opacity-70 hover:opacity-100">&times;</button>
+      </div>
+
+      <form id="taskForm" onsubmit="handleSaveTask(event)" class="space-y-3 text-sm">
+        <input type="hidden" id="taskId">
+
+        <div>
+          <label class="block text-xs opacity-75 mb-1">タスク内容</label>
+          <input type="text" id="taskTitle" required placeholder="例: 部屋の掃除・宿題" class="w-full p-2.5 rounded-xl bg-slate-800 border border-white/20">
+        </div>
+
+        <div>
+          <label class="block text-xs opacity-75 mb-1">補足説明</label>
+          <textarea id="taskNote" rows="2" placeholder="詳細やメモ" class="w-full p-2.5 rounded-xl bg-slate-800 border border-white/20"></textarea>
+        </div>
+
+        <!-- 期限（「期限なし」トグル付き） -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs opacity-75">期限日時</label>
+            <label class="text-xs flex items-center gap-1 cursor-pointer text-indigo-300">
+              <input type="checkbox" id="taskNoDue" onchange="toggleDueInput()" class="accent-indigo-500">
+              期限なし
+            </label>
+          </div>
+          <input type="datetime-local" id="taskDueDate" class="w-full p-2.5 rounded-xl bg-slate-800 border border-white/20 text-xs">
+        </div>
+
+        <div>
+          <label class="block text-xs opacity-75 mb-1">予想使用時間 (分)</label>
+          <input type="number" id="taskEstMinutes" min="5" step="5" value="30" class="w-full p-2.5 rounded-xl bg-slate-800 border border-white/20 text-xs">
+        </div>
+
+        <!-- サブタスク -->
+        <div>
+          <label class="block text-xs opacity-75 mb-1">進捗チェックリスト</label>
+          <div id="taskSubtasksList" class="space-y-1 mb-2"></div>
+          <div class="flex gap-2">
+            <input type="text" id="newSubtaskInput" placeholder="新しいサブタスク" class="flex-1 p-2 rounded-xl bg-slate-800 border border-white/20 text-xs">
+            <button type="button" onclick="addSubtaskInput()" class="px-3 py-1 bg-white/10 hover:bg-white/20 rounded-xl text-xs">追加</button>
+          </div>
+        </div>
+
+        <!-- 重要度手動調整 -->
+        <div>
+          <label class="block text-xs opacity-75 mb-1">重要度の手動微調整 (カード全面カラー連動)</label>
+          <div class="flex items-center gap-3">
+            <input type="range" id="taskManualPriority" min="0" max="100" value="50" oninput="updatePriorityPreview(this.value)" class="flex-1 accent-emerald-500">
+            <div id="priorityPreviewBox" class="w-12 h-8 rounded-lg border border-white/20 flex items-center justify-center text-xs font-bold text-black shadow">50%</div>
+          </div>
+        </div>
+
+        <div class="pt-3 flex gap-2">
+          <button type="button" onclick="closeTaskModal()" class="flex-1 py-2.5 bg-gray-600 text-white rounded-xl font-bold">キャンセル</button>
+          <button type="submit" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- カウントダウンモーダル (z-index: 50) -->
+  <div id="countdownModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-lg hidden flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-sm rounded-3xl p-6 text-center space-y-4 border-2 border-indigo-500 shadow-2xl">
+      <div class="text-indigo-400 text-4xl animate-bounce"><i class="fa-solid fa-bell"></i></div>
+      <h3 class="text-lg font-bold">まもなく予定の時間です！</h3>
+      <p id="countdownPieceName" class="text-2xl font-black text-pink-400">---</p>
+      
+      <div class="py-2">
+        <div id="countdownNumber" class="text-6xl font-black text-indigo-300">5</div>
+        <p class="text-xs opacity-60 mt-2">秒後にスタート！</p>
+      </div>
+
+      <button onclick="closeCountdownModal()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg">
+        了解！
+      </button>
+    </div>
+  </div>
+
+  <!-- サウンド＆振動フィードバック -->
+  <script>
+    const playAudioBeep = (freq = 520, duration = 0.08) => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + duration);
+        setTimeout(() => ctx.close(), duration * 1000 + 100);
+      } catch (e) {}
+    };
+
+    const triggerHaptic = () => {
+      if (navigator.vibrate) navigator.vibrate(25);
+    };
+  </script>
+
+  <!-- メインアプリロジック -->
+  <script>
+    let appState = {
+      theme: {
+        bgColor: '#0f172a',
+        textColor: '#f8fafc',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        dailyReminderTime: '08:00'
+      },
+      pieces: [
+        { id: 'p1', title: '朝のストレッチ', color: '#38bdf8', days: ['mon','tue','wed','thu','fri','sat','sun'], isToday: false, addToTask: false },
+        { id: 'p2', title: '帰宅・手洗い', color: '#818cf8', days: ['mon','wed','fri'], isToday: false, addToTask: false },
+        { id: 'p3', title: '夕食・準備', color: '#fbbf24', days: ['mon','tue','wed','thu','fri','sat','sun'], isToday: false, addToTask: true },
+        { id: 'p4', title: 'お風呂タイム', color: '#f472b6', days: ['mon','tue','wed','thu','fri','sat','sun'], isToday: false, addToTask: false },
+        { id: 'p5', title: '読書・学習', color: '#34d399', days: [], isToday: true, addToTask: true }
+      ],
+      schedules: [
+        { id: 's1', pieceId: 'p3', title: '夕食・準備', color: '#fbbf24', startMin: 1140, durationMin: 60 },
+        { id: 's2', pieceId: 'p4', title: 'お風呂タイム', color: '#f472b6', startMin: 1260, durationMin: 45 }
+      ],
+      tasks: [
+        {
+          id: 't1',
+          title: '部屋の掃除と整理',
+          note: '机の上と床をピカピカにする',
+          dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+          noDue: false,
+          estMinutes: 45,
+          subtasks: [{ title: 'ゴミをまとめる', done: true }, { title: '掃除機をかける', done: false }],
+          manualPriority: 80
+        },
+        {
+          id: 't2',
+          title: '宿題',
+          note: '数学ワーク5ページ分',
+          dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+          noDue: false,
+          estMinutes: 30,
+          subtasks: [],
+          manualPriority: 65
+        }
+      ]
+    };
+
+    let countdownInterval = null;
+    let tempSubtasks = [];
+
+    // --- 初期化 & ローカルストレージ ---
+    window.onload = () => {
+      loadData();
+      updateDateDisplay();
+      renderDayFilterBtns();
+      renderPieces();
+      renderAvailablePiecesPool();
+      renderTimelineList();
+      renderTasks();
+      initClockCanvas();
+      initColorWheelCanvas();
+      startNotificationChecker();
+    };
+
+    function loadData() {
+      const saved = localStorage.getItem('24h_routine_pro_data');
+      if (saved) {
+        try { 
+          const parsed = JSON.parse(saved);
+          // 旧データ構造からの下位互換パッチ
+          parsed.pieces = parsed.pieces.map(p => {
+            if (!p.days) {
+              if (p.dayType === 'all') p.days = ['mon','tue','wed','thu','fri','sat','sun'];
+              else if (p.dayType === 'today') { p.days = []; p.isToday = true; }
+              else if (p.dayType) { p.days = [p.dayType]; p.isToday = false; }
+              else { p.days = ['mon','tue','wed','thu','fri','sat','sun']; p.isToday = false; }
+            }
+            return p;
+          });
+          appState = parsed;
+        } catch (e) {}
+      }
+      applyThemeSettings();
+    }
+
+    function saveData() {
+      localStorage.setItem('24h_routine_pro_data', JSON.stringify(appState));
+    }
+
+    function updateDateDisplay() {
+      const now = new Date();
+      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} (${days[now.getDay()]})`;
+      document.getElementById('currentDateStr').innerText = dateStr;
+      document.getElementById('dayOfWeekBadge').innerText = `${days[now.getDay()]}曜のパターン`;
+    }
+
+    function switchTab(tabName) {
+      ['Schedule', 'Pieces', 'Tasks'].forEach(t => {
+        document.getElementById(`tab${t}`).classList.add('hidden');
+        document.getElementById(`tab${t}Btn`).classList.remove('active');
+      });
+      document.getElementById(`tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.remove('hidden');
+      document.getElementById(`tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Btn`).classList.add('active');
+
+      if (tabName === 'schedule') drawClock();
+    }
+
+    // --- 設定 & テーマ ---
+    function toggleSettingsModal(show) {
+      document.getElementById('settingsModal').classList.toggle('hidden', !show);
+      if (show) {
+        document.getElementById('fontSelect').value = appState.theme.fontFamily;
+        document.getElementById('dailyReminderTime').value = appState.theme.dailyReminderTime || '08:00';
+      }
+    }
+
+    function applyThemeSettings() {
+      document.documentElement.style.setProperty('--bg-color', appState.theme.bgColor);
+      document.documentElement.style.setProperty('--text-color', appState.theme.textColor);
+      document.documentElement.style.setProperty('--app-font', appState.theme.fontFamily);
+      drawClock();
+    }
+
+    function updateFontSetting() {
+      appState.theme.fontFamily = document.getElementById('fontSelect').value;
+      applyThemeSettings();
+    }
+
+    function saveSettings() {
+      appState.theme.dailyReminderTime = document.getElementById('dailyReminderTime').value;
+      saveData();
+      toggleSettingsModal(false);
+    }
+
+    // --- ibisPaint風 カラーピッカー ---
+    let pickerTarget = null;
+    let pickerH = 200, pickerS = 0.8, pickerV = 0.8;
+    let wheelCanvas, wheelCtx;
+
+    function initColorWheelCanvas() {
+      wheelCanvas = document.getElementById('colorWheelCanvas');
+      wheelCtx = wheelCanvas.getContext('2d');
+
+      wheelCanvas.addEventListener('pointerdown', handleWheelPointer);
+      wheelCanvas.addEventListener('pointermove', (e) => { if (e.buttons) handleWheelPointer(e); });
+    }
+
+    function openCustomColorPicker(targetKey, initialHex = '#38bdf8') {
+      pickerTarget = targetKey;
+      const rgb = hexToRgb(initialHex) || { r: 56, g: 189, b: 248 };
+      const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+      pickerH = hsv.h; pickerS = hsv.s; pickerV = hsv.v;
+
+      updatePickerUIFromHSV();
+      document.getElementById('customColorPickerModal').classList.remove('hidden');
+      drawColorWheel();
+    }
+
+    function closeCustomColorPicker() {
+      document.getElementById('customColorPickerModal').classList.add('hidden');
+    }
+
+    function drawColorWheel() {
+      if (!wheelCtx) return;
+      const w = wheelCanvas.width;
+      const h = wheelCanvas.height;
+      const cx = w / 2, cy = h / 2;
+      const outerR = w / 2 - 10;
+      const innerR = outerR - 30;
+
+      wheelCtx.clearRect(0, 0, w, h);
+
+      for (let angle = 0; angle < 360; angle += 1) {
+        const rad1 = (angle - 90) * Math.PI / 180;
+        const rad2 = (angle - 88) * Math.PI / 180;
+
+        wheelCtx.beginPath();
+        wheelCtx.arc(cx, cy, outerR, rad1, rad2);
+        wheelCtx.arc(cx, cy, innerR, rad2, rad1, true);
+        wheelCtx.closePath();
+        wheelCtx.fillStyle = `hsl(${angle}, 100%, 50%)`;
+        wheelCtx.fill();
+      }
+
+      const hueRad = (pickerH - 90) * Math.PI / 180;
+      const midR = (outerR + innerR) / 2;
+      const hx = cx + midR * Math.cos(hueRad);
+      const hy = cy + midR * Math.sin(hueRad);
+
+      wheelCtx.beginPath();
+      wheelCtx.arc(hx, hy, 12, 0, 2 * Math.PI);
+      wheelCtx.strokeStyle = '#ffffff';
+      wheelCtx.lineWidth = 3;
+      wheelCtx.stroke();
+
+      const diamondRadius = innerR - 20;
+      wheelCtx.save();
+      wheelCtx.translate(cx, cy);
+      wheelCtx.rotate(Math.PI / 4);
+
+      const side = diamondRadius * 1.4;
+      const halfSide = side / 2;
+
+      wheelCtx.fillStyle = `hsl(${pickerH}, 100%, 50%)`;
+      wheelCtx.fillRect(-halfSide, -halfSide, side, side);
+
+      const gradWhite = wheelCtx.createLinearGradient(-halfSide, 0, halfSide, 0);
+      gradWhite.addColorStop(0, 'rgba(255,255,255,1)');
+      gradWhite.addColorStop(1, 'rgba(255,255,255,0)');
+      wheelCtx.fillStyle = gradWhite;
+      wheelCtx.fillRect(-halfSide, -halfSide, side, side);
+
+      const gradBlack = wheelCtx.createLinearGradient(0, halfSide, 0, -halfSide);
+      gradBlack.addColorStop(0, 'rgba(0,0,0,1)');
+      gradBlack.addColorStop(1, 'rgba(0,0,0,0)');
+      wheelCtx.fillStyle = gradBlack;
+      wheelCtx.fillRect(-halfSide, -halfSide, side, side);
+
+      const dx = (pickerS - 0.5) * side;
+      const dy = (0.5 - pickerV) * side;
+      wheelCtx.beginPath();
+      wheelCtx.arc(dx, dy, 10, 0, 2 * Math.PI);
+      wheelCtx.strokeStyle = '#ffffff';
+      wheelCtx.lineWidth = 3;
+      wheelCtx.stroke();
+
+      wheelCtx.restore();
+    }
+
+    function handleWheelPointer(e) {
+      const rect = wheelCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left - wheelCanvas.width / 2;
+      const y = e.clientY - rect.top - wheelCanvas.height / 2;
+      const dist = Math.sqrt(x*x + y*y);
+
+      const outerR = wheelCanvas.width / 2 - 10;
+      const innerR = outerR - 30;
+
+      if (dist >= innerR && dist <= outerR + 10) {
+        let deg = Math.atan2(y, x) * 180 / Math.PI + 90;
+        if (deg < 0) deg += 360;
+        pickerH = deg;
+      } else if (dist < innerR - 10) {
+        const side = (innerR - 20) * 1.4;
+        const rad = -Math.PI / 4;
+        const rx = x * Math.cos(rad) - y * Math.sin(rad);
+        const ry = x * Math.sin(rad) + y * Math.cos(rad);
+
+        pickerS = Math.min(1, Math.max(0, (rx / side) + 0.5));
+        pickerV = Math.min(1, Math.max(0, 0.5 - (ry / side)));
+      }
+
+      updatePickerUIFromHSV();
+      drawColorWheel();
+    }
+
+    function updatePickerUIFromHSV() {
+      const rgb = hsvToRgb(pickerH, pickerS, pickerV);
+      const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+
+      document.getElementById('pickerHexInput').value = hex;
+      document.getElementById('pickerR').value = rgb.r;
+      document.getElementById('pickerG').value = rgb.g;
+      document.getElementById('pickerB').value = rgb.b;
+      document.getElementById('pickerRVal').innerText = rgb.r;
+      document.getElementById('pickerGVal').innerText = rgb.g;
+      document.getElementById('pickerBVal').innerText = rgb.b;
+      document.getElementById('pickerColorBadge').style.backgroundColor = hex;
+    }
+
+    function onColorSliderChange() {
+      const r = parseInt(document.getElementById('pickerR').value);
+      const g = parseInt(document.getElementById('pickerG').value);
+      const b = parseInt(document.getElementById('pickerB').value);
+
+      const hsv = rgbToHsv(r, g, b);
+      pickerH = hsv.h; pickerS = hsv.s; pickerV = hsv.v;
+
+      document.getElementById('pickerHexInput').value = rgbToHex(r, g, b);
+      document.getElementById('pickerRVal').innerText = r;
+      document.getElementById('pickerGVal').innerText = g;
+      document.getElementById('pickerBVal').innerText = b;
+      document.getElementById('pickerColorBadge').style.backgroundColor = rgbToHex(r, g, b);
+      drawColorWheel();
+    }
+
+    function onHexInputChange(hexStr) {
+      const rgb = hexToRgb(hexStr);
+      if (rgb) {
+        const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+        pickerH = hsv.h; pickerS = hsv.s; pickerV = hsv.v;
+        updatePickerUIFromHSV();
+        drawColorWheel();
+      }
+    }
+
+    function confirmCustomColorSelection() {
+      const selectedHex = document.getElementById('pickerHexInput').value;
+
+      if (pickerTarget === 'bgColor') {
+        appState.theme.bgColor = selectedHex;
+        document.getElementById('bgColorPreview').style.backgroundColor = selectedHex;
+        applyThemeSettings();
+      } else if (pickerTarget === 'textColor') {
+        appState.theme.textColor = selectedHex;
+        document.getElementById('textColorPreview').style.backgroundColor = selectedHex;
+        applyThemeSettings();
+      } else if (pickerTarget === 'pieceColor') {
+        document.getElementById('pieceColorVal').value = selectedHex;
+        document.getElementById('pieceColorPreview').style.backgroundColor = selectedHex;
+      }
+
+      saveData();
+      closeCustomColorPicker();
+    }
+
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+    }
+    function rgbToHex(r, g, b) {
+      return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1).toUpperCase();
+    }
+    function rgbToHsv(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, v = max;
+      const d = max - min;
+      s = max === 0 ? 0 : d / max;
+      if (max === min) h = 0;
+      else {
+        switch (max) {
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+      }
+      return { h: h * 360, s, v };
+    }
+    function hsvToRgb(h, s, v) {
+      let r, g, b;
+      const i = Math.floor((h / 360) * 6);
+      const f = (h / 360) * 6 - i;
+      const p = v * (1 - s);
+      const q = v * (1 - f * s);
+      const t = v * (1 - (1 - f) * s);
+      switch (i % 6) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+      }
+      return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+    }
+
+    // --- 24時間 アナログ時計キャンバス ---
+    let clockCanvas, ctx;
+    let draggingPieceId = null;
+    let dragMode = null;
+    let dragStartMinOffset = 0;
+    let pointerDownMin = 0;
+
+    function initClockCanvas() {
+      clockCanvas = document.getElementById('clockCanvas');
+      ctx = clockCanvas.getContext('2d');
+
+      clockCanvas.addEventListener('pointerdown', handleClockPointerDown);
+      clockCanvas.addEventListener('pointermove', handleClockPointerMove);
+      clockCanvas.addEventListener('pointerup', handleClockPointerUp);
+
+      drawClock();
+    }
+
+    function drawClock() {
+      if (!ctx) return;
+      const w = clockCanvas.width;
+      const h = clockCanvas.height;
+      const cx = w / 2, cy = h / 2;
+      const radius = w / 2 - 50;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 時計文字盤ベース
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // 時間目盛り
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `600 22px ${appState.theme.fontFamily}`;
+      ctx.fillStyle = appState.theme.textColor;
+
+      for (let hour = 0; hour < 24; hour++) {
+        const angle = (hour / 24) * 2 * Math.PI - Math.PI / 2;
+        const x1 = cx + (radius - 16) * Math.cos(angle);
+        const y1 = cy + (radius - 16) * Math.sin(angle);
+        const x2 = cx + radius * Math.cos(angle);
+        const y2 = cy + radius * Math.sin(angle);
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = hour % 6 === 0 ? '#38bdf8' : 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = hour % 6 === 0 ? 3 : 1;
+        ctx.stroke();
+
+        if (hour % 2 === 0) {
+          const tx = cx + (radius - 38) * Math.cos(angle);
+          const ty = cy + (radius - 38) * Math.sin(angle);
+          ctx.fillText(`${hour}`, tx, ty);
+        }
+      }
+
+      // ピザ型ピースの描画
+      appState.schedules.forEach(item => {
+        const startAngle = (item.startMin / 1440) * 2 * Math.PI - Math.PI / 2;
+        const endAngle = ((item.startMin + item.durationMin) / 1440) * 2 * Math.PI - Math.PI / 2;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius - 4, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = item.color + 'E0';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        const midAngle = (startAngle + endAngle) / 2;
+        const lx = cx + (radius * 0.65) * Math.cos(midAngle);
+        const ly = cy + (radius * 0.65) * Math.sin(midAngle);
+
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold 20px ${appState.theme.fontFamily}`;
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 4;
+        ctx.fillText(item.title, 0, -10);
+        ctx.font = `15px ${appState.theme.fontFamily}`;
+        ctx.fillText(`${formatMinToTime(item.startMin)} (${item.durationMin}分)`, 0, 12);
+        ctx.restore();
+
+        // 伸縮・移動ハンドルの描画
+        [startAngle, endAngle].forEach(ang => {
+          const hx = cx + (radius - 4) * Math.cos(ang);
+          const hy = cy + (radius - 4) * Math.sin(ang);
+          ctx.beginPath();
+          ctx.arc(hx, hy, 9, 0, 2 * Math.PI);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+
+      // 現在時刻の赤い針
+      const now = new Date();
+      const currentMin = now.getHours() * 60 + now.getMinutes();
+      const nowAngle = (currentMin / 1440) * 2 * Math.PI - Math.PI / 2;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + (radius + 12) * Math.cos(nowAngle), cy + (radius + 12) * Math.sin(nowAngle));
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ef4444';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    function getMinutesFromPointer(e) {
+      const rect = clockCanvas.getBoundingClientRect();
+      const scale = clockCanvas.width / rect.width;
+      const x = (e.clientX - rect.left) * scale - clockCanvas.width / 2;
+      const y = (e.clientY - rect.top) * scale - clockCanvas.height / 2;
+
+      let angle = Math.atan2(y, x) + Math.PI / 2;
+      if (angle < 0) angle += 2 * Math.PI;
+
+      return Math.floor((angle / (2 * Math.PI)) * 1440);
+    }
+
+    function handleClockPointerDown(e) {
+      const minClicked = getMinutesFromPointer(e);
+      pointerDownMin = minClicked;
+
+      for (let s of appState.schedules) {
+        const start = s.startMin;
+        const end = s.startMin + s.durationMin;
+
+        if (Math.abs(minClicked - start) <= 20) {
+          draggingPieceId = s.id;
+          dragMode = 'start';
+          return;
+        }
+        if (Math.abs(minClicked - end) <= 20) {
+          draggingPieceId = s.id;
+          dragMode = 'end';
+          return;
+        }
+        if (minClicked >= start && minClicked <= end) {
+          draggingPieceId = s.id;
+          dragMode = 'move';
+          dragStartMinOffset = minClicked - start;
+          return;
+        }
+      }
+    }
+
+    function handleClockPointerMove(e) {
+      if (!draggingPieceId) return;
+
+      let min = getMinutesFromPointer(e);
+      const snappedMin = Math.round(min / 15) * 15;
+
+      const sched = appState.schedules.find(s => s.id === draggingPieceId);
+      if (!sched) return;
+
+      let changed = false;
+
+      if (dragMode === 'start') {
+        const newDuration = (sched.startMin + sched.durationMin) - snappedMin;
+        if (newDuration >= 15 && snappedMin >= 0) {
+          sched.startMin = snappedMin;
+          sched.durationMin = newDuration;
+          changed = true;
+        }
+      } else if (dragMode === 'end') {
+        const newDuration = snappedMin - sched.startMin;
+        if (newDuration >= 15 && (sched.startMin + newDuration) <= 1440) {
+          sched.durationMin = newDuration;
+          changed = true;
+        }
+      } else if (dragMode === 'move') {
+        const newStart = Math.max(0, Math.min(1440 - sched.durationMin, snappedMin - dragStartMinOffset));
+        if (newStart !== sched.startMin) {
+          sched.startMin = Math.round(newStart / 15) * 15;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        playAudioBeep(650, 0.03);
+        triggerHaptic();
+        drawClock();
+        renderTimelineList();
+      }
+    }
+
+    function handleClockPointerUp(e) {
+      const minUp = getMinutesFromPointer(e);
+      if (draggingPieceId && Math.abs(minUp - pointerDownMin) < 10) {
+        const sched = appState.schedules.find(s => s.id === draggingPieceId);
+        if (sched && confirm(`「${sched.title}」を時計から取り外しますか？`)) {
+          removeSchedule(sched.id);
+        }
+      } else if (draggingPieceId) {
+        saveData();
+      }
+      draggingPieceId = null;
+      dragMode = null;
+    }
+
+    // --- ピース管理＆曜日選択ロジック ---
+    const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    const dayLabelsMap = { all: 'すべて', today: '今日限定', mon: '月曜', tue: '火曜', wed: '水曜', thu: '木曜', fri: '金曜', sat: '土曜', sun: '日曜' };
+    let currentDayFilter = 'all';
+
+    function renderDayFilterBtns() {
+      const container = document.getElementById('dayFilterBtns');
+      container.innerHTML = Object.keys(dayLabelsMap).map(key => `
+        <button onclick="setDayFilter('${key}')" class="px-3 py-1.5 rounded-xl whitespace-nowrap ${currentDayFilter === key ? 'bg-indigo-600 text-white font-bold' : 'bg-white/10 opacity-70'}">
+          ${dayLabelsMap[key]}
+        </button>
+      `).join('');
+    }
+
+    function setDayFilter(dayKey) {
+      currentDayFilter = dayKey;
+      renderDayFilterBtns();
+      renderPieces();
+    }
+
+    function getPieceDayLabelsText(piece) {
+      if (piece.isToday) return '今日限定';
+      if (!piece.days || piece.days.length === 0) return '指定なし';
+      if (piece.days.length === 7) return '毎日 (全曜日)';
+      const isWeekdays = piece.days.length === 5 && ['mon','tue','wed','thu','fri'].every(d => piece.days.includes(d));
+      if (isWeekdays) return '平日のみ';
+      const isWeekend = piece.days.length === 2 && ['sat','sun'].every(d => piece.days.includes(d));
+      if (isWeekend) return '土日のみ';
+
+      return piece.days.map(d => dayLabelsMap[d].replace('曜','')).join('・') + '曜';
+    }
+
+    function renderPieces() {
+      const grid = document.getElementById('piecesGrid');
+      const filtered = appState.pieces.filter(p => {
+        if (currentDayFilter === 'all') return true;
+        if (currentDayFilter === 'today') return p.isToday;
+        return p.days && p.days.includes(currentDayFilter);
+      });
+
+      grid.innerHTML = filtered.map(p => `
+        <div class="glass-card p-4 rounded-2xl flex justify-between items-center border-l-8 shadow-lg" style="border-left-color: ${p.color}">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="w-4 h-4 rounded-full shadow border border-white/40" style="background-color: ${p.color}"></span>
+              <h3 class="font-bold text-md">${p.title}</h3>
+            </div>
+            <div class="flex flex-wrap gap-1.5 text-xs opacity-80 pt-0.5">
+              <span class="px-2 py-0.5 rounded bg-white/15 font-medium">${getPieceDayLabelsText(p)}</span>
+              ${p.addToTask ? '<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">やること自動連携</span>' : ''}
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="openPieceModal('${p.id}')" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold">
+              編集
+            </button>
+            <button onclick="quickAddPieceToClock('${p.id}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow">
+              時計へ配置
+            </button>
+            <button onclick="deletePiece('${p.id}')" class="p-2 text-red-400 hover:bg-red-500/20 hover:text-red-300 rounded-lg transition" title="ピースを削除">
+              <i class="fa-solid fa-trash-can text-lg"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderAvailablePiecesPool() {
+      const pool = document.getElementById('availablePiecesList');
+      const todayDayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
+
+      const available = appState.pieces.filter(p => p.isToday || (p.days && p.days.includes(todayDayKey)));
+
+      if (available.length === 0) {
+        pool.innerHTML = `<div class="text-xs opacity-50 py-2">本日該当するピースはありません</div>`;
+        return;
+      }
+
+      pool.innerHTML = available.map(p => `
+        <div class="flex items-center rounded-xl text-xs font-bold text-white shadow-md border border-white/20 overflow-hidden" style="background-color: ${p.color}">
+          <span onclick="quickAddPieceToClock('${p.id}')" draggable="true" ondragstart="onPieceDragStart(event, '${p.id}')" class="px-3 py-2 cursor-grab flex items-center gap-1.5 hover:opacity-90">
+            🍕 ${p.title}
+          </span>
+          <button onclick="deletePiece('${p.id}')" class="px-2 py-2 bg-black/25 hover:bg-black/50 text-white/90 hover:text-white transition" title="削除">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function onPieceDragStart(e, pieceId) {
+      e.dataTransfer.setData('text/plain', pieceId);
+    }
+
+    document.getElementById('clockDropTarget').addEventListener('dragover', (e) => e.preventDefault());
+    document.getElementById('clockDropTarget').addEventListener('drop', (e) => {
+      e.preventDefault();
+      const pieceId = e.dataTransfer.getData('text/plain');
+      if (pieceId) quickAddPieceToClock(pieceId);
+    });
+
+    function quickAddPieceToClock(pieceId) {
+      const p = appState.pieces.find(x => x.id === pieceId);
+      if (!p) return;
+
+      const startMin = 1080; // 18:00
+      const durationMin = 60;
+
+      appState.schedules.push({
+        id: 's_' + Date.now(),
+        pieceId: p.id,
+        title: p.title,
+        color: p.color,
+        startMin,
+        durationMin
+      });
+
+      if (p.addToTask) {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        appState.tasks.push({
+          id: 't_' + Date.now(),
+          title: p.title,
+          note: '時計より配置',
+          dueDate: `${todayStr}T${formatMinToTime(startMin + durationMin)}`,
+          noDue: false,
+          estMinutes: durationMin,
+          subtasks: [],
+          manualPriority: 50
+        });
+        renderTasks();
+      }
+
+      playAudioBeep(700, 0.1);
+      triggerHaptic();
+      saveData();
+      drawClock();
+      renderTimelineList();
+      switchTab('schedule');
+    }
+
+    // ★ ピース作成モーダル 曜日UIイベント handler ★
+    function toggleAllDaysSelection(selectAll) {
+      dayKeys.forEach(k => {
+        document.getElementById(`day_${k}`).checked = selectAll;
+      });
+      if (selectAll) document.getElementById('day_today').checked = false;
+    }
+
+    function toggleWeekdaysSelection() {
+      dayKeys.forEach(k => {
+        const isWeekday = ['mon','tue','wed','thu','fri'].includes(k);
+        document.getElementById(`day_${k}`).checked = isWeekday;
+      });
+      document.getElementById('day_today').checked = false;
+    }
+
+    function toggleWeekendSelection() {
+      dayKeys.forEach(k => {
+        const isWeekend = ['sat','sun'].includes(k);
+        document.getElementById(`day_${k}`).checked = isWeekend;
+      });
+      document.getElementById('day_today').checked = false;
+    }
+
+    function onDayCheckboxChange() {
+      // 曜日が選ばれたら今日限定をオフ
+      const anyChecked = dayKeys.some(k => document.getElementById(`day_${k}`).checked);
+      if (anyChecked) {
+        document.getElementById('day_today').checked = false;
+      }
+    }
+
+    function onTodayCheckboxChange() {
+      // 今日限定が選ばれたら月〜日を全クリア
+      if (document.getElementById('day_today').checked) {
+        dayKeys.forEach(k => {
+          document.getElementById(`day_${k}`).checked = false;
+        });
+      }
+    }
+
+    function openPieceModal(pieceId = null) {
+      document.getElementById('pieceForm').reset();
+      document.getElementById('pieceId').value = '';
+      document.getElementById('pieceModalTitle').innerText = '新規ピースの作成';
+      document.getElementById('pieceColorVal').value = '#3b82f6';
+      document.getElementById('pieceColorPreview').style.backgroundColor = '#3b82f6';
+      document.getElementById('modalDeletePieceBtn').classList.add('hidden');
+
+      // デフォルトは全曜日ON
+      toggleAllDaysSelection(true);
+
+      if (pieceId) {
+        const p = appState.pieces.find(x => x.id === pieceId);
+        if (p) {
+          document.getElementById('pieceId').value = p.id;
+          document.getElementById('pieceTitle').value = p.title;
+          document.getElementById('pieceColorVal').value = p.color;
+          document.getElementById('pieceColorPreview').style.backgroundColor = p.color;
+          document.getElementById('pieceAddToTask').checked = p.addToTask;
+          document.getElementById('pieceModalTitle').innerText = 'ピースの編集';
+          document.getElementById('modalDeletePieceBtn').classList.remove('hidden');
+
+          document.getElementById('day_today').checked = !!p.isToday;
+          dayKeys.forEach(k => {
+            document.getElementById(`day_${k}`).checked = p.days && p.days.includes(k);
+          });
+        }
+      }
+      document.getElementById('pieceModal').classList.remove('hidden');
+    }
+
+    function closePieceModal() {
+      document.getElementById('pieceModal').classList.add('hidden');
+    }
+
+    function handleSavePiece(e) {
+      e.preventDefault();
+      const id = document.getElementById('pieceId').value || 'p_' + Date.now();
+      const title = document.getElementById('pieceTitle').value;
+      const color = document.getElementById('pieceColorVal').value;
+      const addToTask = document.getElementById('pieceAddToTask').checked;
+
+      const isToday = document.getElementById('day_today').checked;
+      const selectedDays = dayKeys.filter(k => document.getElementById(`day_${k}`).checked);
+
+      if (!isToday && selectedDays.length === 0) {
+        alert('適用する曜日を1つ以上選択するか、「本日限定」にチェックを入れてください。');
+        return;
+      }
+
+      const idx = appState.pieces.findIndex(p => p.id === id);
+      const pieceData = { id, title, color, days: selectedDays, isToday, addToTask };
+
+      if (idx >= 0) appState.pieces[idx] = pieceData;
+      else appState.pieces.push(pieceData);
+
+      appState.schedules.forEach(s => {
+        if (s.pieceId === id) {
+          s.title = title;
+          s.color = color;
+        }
+      });
+
+      saveData();
+      closePieceModal();
+      renderPieces();
+      renderAvailablePiecesPool();
+      drawClock();
+      renderTimelineList();
+    }
+
+    function deletePiece(id) {
+      if (confirm('このピースを削除しますか？')) {
+        appState.pieces = appState.pieces.filter(p => p.id !== id);
+        appState.schedules = appState.schedules.filter(s => s.pieceId !== id);
+        saveData();
+        renderPieces();
+        renderAvailablePiecesPool();
+        drawClock();
+        renderTimelineList();
+      }
+    }
+
+    function deletePieceFromModal() {
+      const id = document.getElementById('pieceId').value;
+      if (id) {
+        deletePiece(id);
+        closePieceModal();
+      }
+    }
+
+    function renderTimelineList() {
+      const container = document.getElementById('timelineList');
+      const sorted = [...appState.schedules].sort((a, b) => a.startMin - b.startMin);
+
+      if (sorted.length === 0) {
+        container.innerHTML = `<div class="text-xs opacity-50 text-center py-4">まだ配置された予定はありません</div>`;
+        return;
+      }
+
+      container.innerHTML = sorted.map(s => `
+        <div class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+          <div class="flex items-center gap-3">
+            <div class="w-3.5 h-8 rounded-full shadow border border-white/30" style="background-color: ${s.color}"></div>
+            <div>
+              <p class="font-bold text-sm">${s.title}</p>
+              <p class="text-xs opacity-75">${formatMinToTime(s.startMin)} 〜 ${formatMinToTime(s.startMin + s.durationMin)} (${s.durationMin}分)</p>
+            </div>
+          </div>
+          <button onclick="removeSchedule('${s.id}')" class="text-xs px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg font-bold transition flex items-center gap-1">
+            <i class="fa-solid fa-trash-can"></i> 削除
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function removeSchedule(schedId) {
+      appState.schedules = appState.schedules.filter(s => s.id !== schedId);
+      saveData();
+      drawClock();
+      renderTimelineList();
+    }
+
+    // --- やることリスト (タスク) ---
+    function openTaskModal(taskId = null) {
+      document.getElementById('taskForm').reset();
+      document.getElementById('taskId').value = '';
+      tempSubtasks = [];
+      document.getElementById('taskModalTitle').innerText = '新規タスク作成';
+      document.getElementById('taskDueDate').value = new Date(Date.now() + 86400000).toISOString().slice(0, 16);
+      document.getElementById('taskNoDue').checked = false;
+      toggleDueInput();
+
+      if (taskId) {
+        const t = appState.tasks.find(x => x.id === taskId);
+        if (t) {
+          document.getElementById('taskId').value = t.id;
+          document.getElementById('taskTitle').value = t.title;
+          document.getElementById('taskNote').value = t.note || '';
+          document.getElementById('taskDueDate').value = t.dueDate || '';
+          document.getElementById('taskNoDue').checked = !!t.noDue;
+          toggleDueInput();
+          document.getElementById('taskEstMinutes').value = t.estMinutes;
+          document.getElementById('taskManualPriority').value = t.manualPriority || 50;
+          tempSubtasks = [...(t.subtasks || [])];
+          document.getElementById('taskModalTitle').innerText = 'タスクの編集';
+        }
+      }
+      updatePriorityPreview(document.getElementById('taskManualPriority').value);
+      renderSubtaskInputs();
+      document.getElementById('taskModal').classList.remove('hidden');
+    }
+
+    function closeTaskModal() {
+      document.getElementById('taskModal').classList.add('hidden');
+    }
+
+    function toggleDueInput() {
+      const noDue = document.getElementById('taskNoDue').checked;
+      document.getElementById('taskDueDate').disabled = noDue;
+      document.getElementById('taskDueDate').style.opacity = noDue ? '0.3' : '1';
+    }
+
+    function addSubtaskInput() {
+      const input = document.getElementById('newSubtaskInput');
+      if (input.value.trim()) {
+        tempSubtasks.push({ title: input.value.trim(), done: false });
+        input.value = '';
+        renderSubtaskInputs();
+      }
+    }
+
+    function renderSubtaskInputs() {
+      const list = document.getElementById('taskSubtasksList');
+      list.innerHTML = tempSubtasks.map((st, i) => `
+        <div class="flex items-center justify-between bg-white/5 p-2 rounded-lg text-xs">
+          <span>${st.title}</span>
+          <button type="button" onclick="tempSubtasks.splice(${i},1); renderSubtaskInputs();" class="text-red-400">&times;</button>
+        </div>
+      `).join('');
+    }
+
+    function updatePriorityPreview(val) {
+      const box = document.getElementById('priorityPreviewBox');
+      box.innerText = `${val}%`;
+      box.style.backgroundColor = getPriorityColor(val);
+    }
+
+    function getPriorityColor(percentage) {
+      const hue = Math.max(0, (100 - percentage) * 1.3);
+      return `hsl(${hue}, 85%, 35%)`;
+    }
+
+    function calculateAutoPriority(task) {
+      let score = task.manualPriority || 50;
+
+      if (!task.noDue && task.dueDate) {
+        const now = new Date().getTime();
+        const due = new Date(task.dueDate).getTime();
+        const hoursLeft = (due - now) / (1000 * 3600);
+
+        if (hoursLeft < 24) score += 35;
+        else if (hoursLeft < 48) score += 20;
+      }
+
+      if (task.estMinutes >= 60) score += 15;
+
+      return Math.min(100, Math.max(0, score));
+    }
+
+    function renderTasks() {
+      const container = document.getElementById('tasksList');
+      if (appState.tasks.length === 0) {
+        container.innerHTML = `<div class="text-xs opacity-50 text-center py-6">タスクは現在ありません</div>`;
+        return;
+      }
+
+      const sorted = [...appState.tasks].sort((a, b) => calculateAutoPriority(b) - calculateAutoPriority(a));
+
+      container.innerHTML = sorted.map(t => {
+        const priorityScore = calculateAutoPriority(t);
+        const cardBgColor = getPriorityColor(priorityScore);
+
+        const completedCount = (t.subtasks || []).filter(s => s.done).length;
+        const totalSub = (t.subtasks || []).length;
+        const subtaskProgress = totalSub > 0 ? (completedCount / totalSub) : 0;
+        const remainingEstMin = Math.round(t.estMinutes * (1 - subtaskProgress));
+
+        return `
+          <div class="rounded-3xl p-5 shadow-2xl border-2 border-white/30 space-y-3 relative overflow-hidden transition-all text-white" 
+               style="background-color: ${cardBgColor};">
+
+            <!-- 重要度バッジ & プログレスバー -->
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-black text-slate-900 px-3 py-1 rounded-full bg-white shadow-md">
+                重要度 ${priorityScore}%
+              </span>
+              <div class="flex-1 ml-4 h-3 rounded-full bg-black/40 overflow-hidden border border-white/30">
+                <div class="h-full rounded-full transition-all bg-amber-400" style="width: ${priorityScore}%;"></div>
+              </div>
+            </div>
+
+            <!-- タスクタイトル & メモ -->
+            <div class="pt-1">
+              <h3 class="font-black text-xl leading-tight drop-shadow-md text-white">${t.title}</h3>
+              ${t.note ? `<p class="text-xs opacity-90 mt-1 bg-black/30 p-2.5 rounded-xl border border-white/10 font-medium">${t.note}</p>` : ''}
+            </div>
+
+            <!-- サブタスクチェックリスト -->
+            ${totalSub > 0 ? `
+              <div class="space-y-2 bg-black/40 p-3 rounded-xl text-xs border border-white/20">
+                ${t.subtasks.map((st, i) => `
+                  <div class="flex items-center gap-2">
+                    <input type="checkbox" ${st.done ? 'checked' : ''} onchange="toggleSubtask('${t.id}', ${i})" class="accent-emerald-400 rounded w-4 h-4 cursor-pointer">
+                    <span class="${st.done ? 'line-through opacity-60' : 'font-bold text-white'}">${st.title}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <!-- 期限＆残予想時間 -->
+            <div class="flex justify-between items-center text-xs pt-1 font-bold">
+              <div class="bg-black/40 px-3 py-1.5 rounded-xl border border-white/20 shadow-sm">
+                <i class="fa-regular fa-clock mr-1"></i> ${t.noDue ? '<span class="text-sky-300">期限なし</span>' : `期限: ${t.dueDate.replace('T', ' ')}`}
+              </div>
+              <div class="bg-black/40 px-3 py-1.5 rounded-xl border border-white/20 shadow-sm">
+                残予想: <span class="text-emerald-300">${remainingEstMin} 分</span>
+              </div>
+            </div>
+
+            <!-- 編集 & 削除ボタン -->
+            <div class="flex justify-end gap-2 pt-2 border-t border-white/20">
+              <button onclick="openTaskModal('${t.id}')" class="px-3.5 py-1.5 bg-black/30 hover:bg-black/50 text-white rounded-xl text-xs font-bold transition border border-white/20 shadow">編集</button>
+              <button onclick="deleteTask('${t.id}')" class="px-3.5 py-1.5 bg-red-600/90 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition shadow-md">完了・削除</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleSubtask(taskId, subtaskIdx) {
+      const task = appState.tasks.find(t => t.id === taskId);
+      if (task && task.subtasks[subtaskIdx]) {
+        task.subtasks[subtaskIdx].done = !task.subtasks[subtaskIdx].done;
+        saveData();
+        renderTasks();
+      }
+    }
+
+    function handleSaveTask(e) {
+      e.preventDefault();
+      const id = document.getElementById('taskId').value || 't_' + Date.now();
+      const title = document.getElementById('taskTitle').value;
+      const note = document.getElementById('taskNote').value;
+      const noDue = document.getElementById('taskNoDue').checked;
+      const dueDate = document.getElementById('taskDueDate').value;
+      const estMinutes = parseInt(document.getElementById('taskEstMinutes').value);
+      const manualPriority = parseInt(document.getElementById('taskManualPriority').value);
+
+      const idx = appState.tasks.findIndex(t => t.id === id);
+      const taskData = { id, title, note, dueDate, noDue, estMinutes, subtasks: tempSubtasks, manualPriority };
+
+      if (idx >= 0) appState.tasks[idx] = taskData;
+      else appState.tasks.push(taskData);
+
+      saveData();
+      closeTaskModal();
+      renderTasks();
+    }
+
+    function deleteTask(id) {
+      appState.tasks = appState.tasks.filter(t => t.id !== id);
+      saveData();
+      renderTasks();
+    }
+
+    // --- 通知・タイマー制御 ---
+    function startNotificationChecker() {
+      setInterval(() => {
+        const now = new Date();
+        const currentMin = now.getHours() * 60 + now.getMinutes();
+        const currentSec = now.getSeconds();
+
+        if (appState.theme.dailyReminderTime) {
+          const [rh, rm] = appState.theme.dailyReminderTime.split(':').map(Number);
+          if (now.getHours() === rh && now.getMinutes() === rm && currentSec === 0) {
+            triggerNotification('今日の予定を決めよう！', '時計にピースを配置しましょう！');
+          }
+        }
+
+        appState.schedules.forEach(s => {
+          if (s.startMin - currentMin === 5 && currentSec === 0) {
+            triggerNotification('まもなく予定 5分前', `もうすぐ「${s.title}」の時間です。`);
+          }
+          if (s.startMin === currentMin && currentSec === 0) {
+            start5SecCountdown(s.title);
+          }
+        });
+      }, 1000);
+    }
+
+    function triggerNotification(title, body) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, { body, icon: '⏱️' });
+      }
+    }
+
+    function triggerDailySetupNotificationModal() {
+      if ('Notification' in window && Notification.permission !== 'granted') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') alert('通知を有効化しました！');
+        });
+      } else {
+        alert('通知は既に有効です。');
+      }
+    }
+
+    function start5SecCountdown(pieceTitle) {
+      document.getElementById('countdownPieceName').innerText = pieceTitle;
+      document.getElementById('countdownModal').classList.remove('hidden');
+
+      let count = 5;
+      document.getElementById('countdownNumber').innerText = count;
+      playAudioBeep(880, 0.15);
+
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      countdownInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          document.getElementById('countdownNumber').innerText = count;
+          playAudioBeep(880, 0.15);
+        } else {
+          document.getElementById('countdownNumber').innerText = 'スタート！';
+          playAudioBeep(1200, 0.4);
+          triggerHaptic();
+          clearInterval(countdownInterval);
+        }
+      }, 1000);
+    }
+
+    function closeCountdownModal() {
+      if (countdownInterval) clearInterval(countdownInterval);
+      document.getElementById('countdownModal').classList.add('hidden');
+    }
+
+    function formatMinToTime(totalMinutes) {
+      const h = Math.floor(totalMinutes / 60) % 24;
+      const m = totalMinutes % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+  </script>
+</body>
+</html>
